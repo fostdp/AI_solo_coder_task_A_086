@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: zhaozhou_bridge_db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: zhaozhou_bridge
+      POSTGRES_USER: bridge_admin
+      POSTGRES_PASSWORD: bridge2024
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bridge_admin -d zhaozhou_bridge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: zhaozhou_bridge_mqtt
+    ports:
+      - "1883:1883"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+      - ./scripts/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    restart: unless-stopped
+
+volumes:
+  timescaledb_data:
+  mosquitto_data:
+  mosquitto_log:

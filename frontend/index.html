@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>赵州桥监测系统 | Zhaozhou Bridge SHM</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://unpkg.com/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <div class="header-title">
+                <h1>赵州桥敞肩拱结构力学仿真与长期变形监测系统</h1>
+                <span class="subtitle">Zhaozhou Bridge Structural Health Monitoring System</span>
+            </div>
+            <div class="header-clock">
+                <div class="clock-time" id="clockTime">00:00:00</div>
+                <div class="clock-date" id="clockDate">加载中...</div>
+            </div>
+        </header>
+
+        <main class="dashboard-main">
+            <section class="viewport-section">
+                <h2>三维结构仿真视图</h2>
+                <div class="viewport-toolbar">
+                    <button class="toolbar-btn" id="btnStress">应力云图</button>
+                    <button class="toolbar-btn" id="btnCrack">显示裂缝标记</button>
+                    <button class="toolbar-btn" id="btnReset">重置视角</button>
+                    <button class="toolbar-btn" id="btnRotate">自动旋转</button>
+                    <button class="toolbar-btn" id="btnPredict">预测50年变形</button>
+                </div>
+                <div class="viewport-canvas-wrap" id="viewport3d"></div>
+            </section>
+
+            <div class="left-column">
+                <div class="metrics-grid">
+                    <div class="metric-card safe" id="metricArch">
+                        <div class="metric-header">
+                            <span class="metric-label">拱券应变</span>
+                            <span class="metric-sensor">ARCH-001</span>
+                        </div>
+                        <div class="metric-value-row">
+                            <span class="metric-value" id="valArch">--</span>
+                            <span class="metric-unit">με</span>
+                        </div>
+                        <div class="metric-sparkline">
+                            <canvas id="sparkArch"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="metric-card warning" id="metricPier">
+                        <div class="metric-header">
+                            <span class="metric-label">桥墩沉降</span>
+                            <span class="metric-sensor">PIER-001/002</span>
+                        </div>
+                        <div class="metric-value-row">
+                            <span class="metric-value" id="valPier">--</span>
+                            <span class="metric-unit">mm</span>
+                        </div>
+                        <div class="metric-secondary" id="valPier2">PIER-002: -- mm</div>
+                        <div class="metric-sparkline">
+                            <canvas id="sparkPier"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="metric-card safe" id="metricTemp">
+                        <div class="metric-header">
+                            <span class="metric-label">桥面温度</span>
+                            <span class="metric-sensor">AVG</span>
+                        </div>
+                        <div class="metric-value-row">
+                            <span class="metric-value" id="valTemp">--</span>
+                            <span class="metric-unit">℃</span>
+                        </div>
+                        <div class="metric-secondary" id="valTempRange">最高: -- / 最低: --</div>
+                        <div class="metric-sparkline">
+                            <canvas id="sparkTemp"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="metric-card critical" id="metricCrack">
+                        <div class="metric-header">
+                            <span class="metric-label">裂缝宽度</span>
+                            <span class="metric-sensor">CRACK-001</span>
+                        </div>
+                        <div class="metric-value-row">
+                            <span class="metric-value" id="valCrack">--</span>
+                            <span class="metric-unit">mm</span>
+                        </div>
+                        <div class="metric-secondary" id="valCrackThreshold">限值: 0.3 / 0.5 mm</div>
+                        <div class="metric-sparkline">
+                            <canvas id="sparkCrack"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-section">
+                    <div class="chart-tabs">
+                        <button class="tab-btn active" data-tab="realtime">实时数据</button>
+                        <button class="tab-btn" data-tab="stress">应力分布</button>
+                        <button class="tab-btn" data-tab="predict">变形预测</button>
+                    </div>
+                    <div class="chart-panels">
+                        <div class="chart-panel active" id="panel-realtime">
+                            <h3>过去24小时传感器数据趋势</h3>
+                            <div class="chart-wrapper">
+                                <canvas id="chartRealtime"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-panel" id="panel-stress">
+                            <h3>各部位应力分布 (von Mises / MPa)</h3>
+                            <div class="chart-wrapper">
+                                <canvas id="chartStress"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-panel" id="panel-predict">
+                            <h3>未来50年长期变形预测</h3>
+                            <div class="chart-wrapper">
+                                <canvas id="chartPredict"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="right-column">
+                <div class="alerts-section">
+                    <div class="alerts-header">
+                        <h2>系统告警</h2>
+                        <div class="alert-stats" id="alertStats">
+                            <span class="stat-critical">0 严重</span>
+                            <span class="stat-warning">0 警告</span>
+                            <span class="stat-info">0 信息</span>
+                        </div>
+                    </div>
+                    <div class="alerts-list" id="alertsList">
+                        <div class="alert-empty">暂无告警</div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <footer class="dashboard-footer">
+            <div class="footer-status">
+                <span class="status-item"><span class="status-dot status-online" id="wsStatus"></span>WebSocket: <span id="wsStatusText">未连接</span></span>
+                <span class="status-item"><span class="status-dot status-online" id="dbStatus"></span>数据库: <span id="dbStatusText">已连接</span></span>
+                <span class="status-item"><span class="status-dot status-online" id="mqttStatus"></span>MQTT代理: <span id="mqttStatusText">运行中</span></span>
+            </div>
+            <div class="footer-info">
+                <span>刷新频率: 10s</span>
+                <span id="lastUpdate">最后更新: --</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="js/stress_cloud_map.js"></script>
+    <script src="js/bridge_3d_model.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
