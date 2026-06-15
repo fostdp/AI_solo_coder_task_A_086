@@ -1,0 +1,11 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY sensor_simulator.py .
+ENV PYTHONUNBUFFERED=1
+ENV API_BASE=http://go-api:8080
+ENV SIM_INTERVAL=600
+ENV SIM_FAST_MODE=false
+ENV SIM_BACKFILL_DAYS=0
+ENV INJECT_TEMP=0
+ENV INJECT_LOAD=1.0
+CMD ["python", "sensor_simulator.py", "--env-config"]

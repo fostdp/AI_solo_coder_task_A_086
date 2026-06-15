@@ -9,9 +9,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
+
+	_ "net/http/pprof"
 
 	"github.com/gorilla/mux"
 
@@ -301,8 +304,18 @@ func main() {
 	creepPredictor := modules.NewCreepPredictor(cfg, db, bus, feaSimulator.FEMService)
 	alarmMQTT := modules.NewAlarmMQTT(cfg, db, bus)
 
+	modules.SetGoroutineFunc(func() int { return runtime.NumGoroutine() })
+
 	r := mux.NewRouter()
+
 	r.Use(EnableCORS)
+	r.Use(modules.MetricsMiddleware)
+	r.Use(modules.GzipMiddleware)
+	r.Use(modules.CacheControlMiddleware)
+
+	r.HandleFunc("/health", modules.HealthCheckHandler).Methods("GET")
+	r.Handle("/metrics", modules.PrometheusHandler()).Methods("GET")
+	r.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
 
 	dtuReceiver.RegisterRoutes(r)
 

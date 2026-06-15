@@ -72,6 +72,7 @@ func (p *CreepPredictor) processPrediction(ctx context.Context, req PredictionRe
 	}
 
 	predictions, err := p.Predictor.Predict50YearDeformation(refTime)
+	DeformationPredictionTotal.Inc()
 	computeMs := time.Since(start).Milliseconds()
 
 	result := PredictionResultPayload{

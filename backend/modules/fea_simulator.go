@@ -50,12 +50,14 @@ func (f *FEASimulator) Run(ctx context.Context) {
 }
 
 func (f *FEASimulator) processRequest(ctx context.Context, req FEMRequestPayload) {
+	FEMComputeTotal.Inc()
 	start := time.Now()
 
 	stresses, err := f.FEMService.RunFullAnalysis(req.LiveLoadPa, req.DeltaTC)
 	f.hasRunOnce = true
 
 	computeMs := time.Since(start).Milliseconds()
+	FEMComputeDuration.Observe(time.Since(start).Seconds())
 
 	result := FEMResultPayload{
 		RequestID: req.RequestID,

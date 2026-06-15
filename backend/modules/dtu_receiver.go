@@ -57,21 +57,26 @@ func (d *DTUReceiver) RegisterRoutes(r *mux.Router) {
 
 func (d *DTUReceiver) validateReading(r *models.SensorReading) error {
 	if r.SensorID == "" {
+		SensorIngestedTotal.WithLabelValues(r.SensorID, "false").Inc()
 		return fmt.Errorf("sensor_id is required")
 	}
 
 	vr := d.Config.DTUReceiver.ValidateRange
 
 	if r.StrainMicro < vr.StrainMin || r.StrainMicro > vr.StrainMax {
+		SensorIngestedTotal.WithLabelValues(r.SensorID, "false").Inc()
 		return fmt.Errorf("strain %.4f out of range [%.2f, %.2f]", r.StrainMicro, vr.StrainMin, vr.StrainMax)
 	}
 	if r.SettlementMM < vr.SettlMin || r.SettlementMM > vr.SettlMax {
+		SensorIngestedTotal.WithLabelValues(r.SensorID, "false").Inc()
 		return fmt.Errorf("settlement %.4f out of range [%.2f, %.2f]", r.SettlementMM, vr.SettlMin, vr.SettlMax)
 	}
 	if r.Temperature < vr.TempMin || r.Temperature > vr.TempMax {
+		SensorIngestedTotal.WithLabelValues(r.SensorID, "false").Inc()
 		return fmt.Errorf("temperature %.2f out of range [%.2f, %.2f]", r.Temperature, vr.TempMin, vr.TempMax)
 	}
 	if r.CrackWidthMM < vr.CrackMin || r.CrackWidthMM > vr.CrackMax {
+		SensorIngestedTotal.WithLabelValues(r.SensorID, "false").Inc()
 		return fmt.Errorf("crack_width %.4f out of range [%.2f, %.2f]", r.CrackWidthMM, vr.CrackMin, vr.CrackMax)
 	}
 
@@ -79,12 +84,14 @@ func (d *DTUReceiver) validateReading(r *models.SensorReading) error {
 		cooldown := time.Duration(d.Config.DTUReceiver.CooldownMs) * time.Millisecond
 		if last, ok := d.lastReading[r.SensorID]; ok {
 			if time.Since(last) < cooldown {
+				SensorIngestedTotal.WithLabelValues(r.SensorID, "false").Inc()
 				return fmt.Errorf("sensor %s cooldown active", r.SensorID)
 			}
 		}
 		d.lastReading[r.SensorID] = time.Now()
 	}
 
+	SensorIngestedTotal.WithLabelValues(r.SensorID, "true").Inc()
 	return nil
 }
 
@@ -343,11 +350,14 @@ func (d *DTUReceiver) RealTimeDataWS(w http.ResponseWriter, r *http.Request) {
 	d.wsClients[conn] = true
 	d.wsClientsMu.Unlock()
 
+	WsConnectedClients.Inc()
+
 	defer func() {
 		d.wsClientsMu.Lock()
 		delete(d.wsClients, conn)
 		d.wsClientsMu.Unlock()
 		conn.Close()
+		WsConnectedClients.Dec()
 	}()
 
 	go func() {

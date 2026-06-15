@@ -219,11 +219,11 @@ func (a *AlertService) checkCrackThresholds(ctx context.Context, reading models.
 	}
 }
 
-func (a *AlertService) TriggerAlert(ctx context.Context, alertType, severity, message, sensorID string, value, threshold float64) error {
+func (a *AlertService) TriggerAlert(ctx context.Context, alertType, severity, message, sensorID string, value, threshold float64) (bool, error) {
 	cooldownKey := fmt.Sprintf("%s|%s", sensorID, alertType)
 	if lastTime, ok := a.AlertCooldown[cooldownKey]; ok {
 		if time.Since(lastTime) < a.CooldownDuration {
-			return nil
+			return false, nil
 		}
 	}
 
@@ -238,7 +238,7 @@ func (a *AlertService) TriggerAlert(ctx context.Context, alertType, severity, me
 	}
 
 	if err := a.DB.InsertAlert(ctx, alert); err != nil {
-		return err
+		return false, err
 	}
 
 	payload := map[string]interface{}{
@@ -253,18 +253,18 @@ func (a *AlertService) TriggerAlert(ctx context.Context, alertType, severity, me
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	qos := byte(1)
 	retained := severity == "critical"
 
 	if token := a.MQTTClient.Publish(a.AlertTopic, qos, retained, jsonData); token.Wait() && token.Error() != nil {
-		return token.Error()
+		return false, token.Error()
 	}
 
 	a.AlertCooldown[cooldownKey] = time.Now()
-	return nil
+	return true, nil
 }
 
 func (a *AlertService) linearRegression(data []models.SensorReading, extract func(models.SensorReading) float64) (slope, intercept float64, r2 float64) {
@@ -317,23 +317,44 @@ func (a *AlertService) linearRegression(data []models.SensorReading, extract fun
 	return slope, intercept, r2
 }
 
-func (a *AlertService) CheckFEMStresses(ctx context.Context, results []models.FEMStressResult) error {
+func (a *AlertService) CheckFEMStresses(ctx context.Context, results []models.FEMStressResult) ([]models.Alert, error) {
 	limit := a.Thresholds.StressLimitPa
 	warnLimit := limit * 0.8
+	generated := make([]models.Alert, 0)
 
 	for _, r := range results {
 		if r.VonMises > limit {
 			sensorID := fmt.Sprintf("FEM-ELEMENT-%d", r.ElementID)
 			msg := fmt.Sprintf("FEM stress critical at element %d: %.2f Pa exceeds limit %.2f Pa", r.ElementID, r.VonMises, limit)
-			a.TriggerAlert(ctx, "stress_exceedance", "critical", msg, sensorID, r.VonMises, limit)
+			published, _ := a.TriggerAlert(ctx, "stress_exceedance", "critical", msg, sensorID, r.VonMises, limit)
+			if published {
+				generated = append(generated, models.Alert{
+					Time:      time.Now(),
+					AlertType: "stress_exceedance",
+					Severity:  "critical",
+					SensorID:  sensorID,
+					Value:     r.VonMises,
+					Threshold: limit,
+				})
+			}
 		} else if r.VonMises > warnLimit {
 			sensorID := fmt.Sprintf("FEM-ELEMENT-%d", r.ElementID)
 			msg := fmt.Sprintf("FEM stress warning at element %d: %.2f Pa approaching limit %.2f Pa", r.ElementID, r.VonMises, limit)
-			a.TriggerAlert(ctx, "stress_exceedance", "warning", msg, sensorID, r.VonMises, warnLimit)
+			published, _ := a.TriggerAlert(ctx, "stress_exceedance", "warning", msg, sensorID, r.VonMises, warnLimit)
+			if published {
+				generated = append(generated, models.Alert{
+					Time:      time.Now(),
+					AlertType: "stress_exceedance",
+					Severity:  "warning",
+					SensorID:  sensorID,
+					Value:     r.VonMises,
+					Threshold: warnLimit,
+				})
+			}
 		}
 	}
 
-	return nil
+	return generated, nil
 }
 
 func (a *AlertService) Close() error {

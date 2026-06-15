@@ -1,0 +1,23 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+
+  - name: TimescaleDB
+    type: postgres
+    access: proxy
+    url: timescaledb:5432
+    database: zhaozhou_bridge
+    user: monitoring_reader
+    secureJsonData:
+      password: bridge2024
+    jsonData:
+      postgresVersion: 1500
+      timescaledb: true
+      sslmode: disable
+    editable: true

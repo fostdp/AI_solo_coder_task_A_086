@@ -83,8 +83,13 @@ func (a *AlarmMQTT) processAlertEval(ctx context.Context, payload AlertEvaluateP
 	generated := make([]models.Alert, 0)
 
 	if len(payload.FEMStresses) > 0 {
-		if err := a.AlertSvc.CheckFEMStresses(ctx, payload.FEMStresses); err != nil {
+		femAlerts, err := a.AlertSvc.CheckFEMStresses(ctx, payload.FEMStresses)
+		if err != nil {
 			log.Printf("FEM stress alert check failed: %v", err)
+		}
+		for _, alert := range femAlerts {
+			AlertsGeneratedTotal.WithLabelValues(alert.Severity, alert.AlertType).Inc()
+			AlertsMqttPublished.Inc()
 		}
 	}
 
@@ -124,23 +129,27 @@ func (a *AlarmMQTT) checkStrainManual(ctx context.Context, reading models.Sensor
 	critThreshold := a.Config.Thresholds.StrainCrit
 
 	if reading.StrainMicro > critThreshold {
-		*generated = append(*generated, models.Alert{
+		alert := models.Alert{
 			Time:      time.Now(),
 			AlertType: "strain_exceedance",
 			Severity:  "critical",
 			SensorID:  reading.SensorID,
 			Value:     reading.StrainMicro,
 			Threshold: critThreshold,
-		})
+		}
+		*generated = append(*generated, alert)
+		AlertsGeneratedTotal.WithLabelValues(alert.Severity, alert.AlertType).Inc()
 	} else if reading.StrainMicro > warnThreshold {
-		*generated = append(*generated, models.Alert{
+		alert := models.Alert{
 			Time:      time.Now(),
 			AlertType: "strain_exceedance",
 			Severity:  "warning",
 			SensorID:  reading.SensorID,
 			Value:     reading.StrainMicro,
 			Threshold: warnThreshold,
-		})
+		}
+		*generated = append(*generated, alert)
+		AlertsGeneratedTotal.WithLabelValues(alert.Severity, alert.AlertType).Inc()
 	}
 }
 
@@ -149,14 +158,16 @@ func (a *AlarmMQTT) checkSettlementManual(ctx context.Context, reading models.Se
 	absValue := math.Abs(reading.SettlementMM)
 
 	if absValue > absThreshold {
-		*generated = append(*generated, models.Alert{
+		alert := models.Alert{
 			Time:      time.Now(),
 			AlertType: "settlement_absolute",
 			Severity:  "critical",
 			SensorID:  reading.SensorID,
 			Value:     absValue,
 			Threshold: absThreshold,
-		})
+		}
+		*generated = append(*generated, alert)
+		AlertsGeneratedTotal.WithLabelValues(alert.Severity, alert.AlertType).Inc()
 	}
 
 	if len(history) < 3 {
@@ -183,23 +194,27 @@ func (a *AlarmMQTT) checkSettlementManual(ctx context.Context, reading models.Se
 	absRate := math.Abs(ratePerMonth)
 
 	if absRate > critThreshold {
-		*generated = append(*generated, models.Alert{
+		alert := models.Alert{
 			Time:      time.Now(),
 			AlertType: "settlement_rate",
 			Severity:  "critical",
 			SensorID:  reading.SensorID,
 			Value:     absRate,
 			Threshold: critThreshold,
-		})
+		}
+		*generated = append(*generated, alert)
+		AlertsGeneratedTotal.WithLabelValues(alert.Severity, alert.AlertType).Inc()
 	} else if absRate > warnThreshold {
-		*generated = append(*generated, models.Alert{
+		alert := models.Alert{
 			Time:      time.Now(),
 			AlertType: "settlement_rate",
 			Severity:  "warning",
 			SensorID:  reading.SensorID,
 			Value:     absRate,
 			Threshold: warnThreshold,
-		})
+		}
+		*generated = append(*generated, alert)
+		AlertsGeneratedTotal.WithLabelValues(alert.Severity, alert.AlertType).Inc()
 	}
 }
 
@@ -208,23 +223,27 @@ func (a *AlarmMQTT) checkCrackManual(ctx context.Context, reading models.SensorR
 	critWidth := a.Config.Thresholds.CrackWidthCrit
 
 	if reading.CrackWidthMM > critWidth {
-		*generated = append(*generated, models.Alert{
+		alert := models.Alert{
 			Time:      time.Now(),
 			AlertType: "crack_width",
 			Severity:  "critical",
 			SensorID:  reading.SensorID,
 			Value:     reading.CrackWidthMM,
 			Threshold: critWidth,
-		})
+		}
+		*generated = append(*generated, alert)
+		AlertsGeneratedTotal.WithLabelValues(alert.Severity, alert.AlertType).Inc()
 	} else if reading.CrackWidthMM > warnWidth {
-		*generated = append(*generated, models.Alert{
+		alert := models.Alert{
 			Time:      time.Now(),
 			AlertType: "crack_width",
 			Severity:  "warning",
 			SensorID:  reading.SensorID,
 			Value:     reading.CrackWidthMM,
 			Threshold: warnWidth,
-		})
+		}
+		*generated = append(*generated, alert)
+		AlertsGeneratedTotal.WithLabelValues(alert.Severity, alert.AlertType).Inc()
 	}
 
 	if len(history) < 3 {
@@ -250,23 +269,27 @@ func (a *AlarmMQTT) checkCrackManual(ctx context.Context, reading models.SensorR
 	critRate := a.Config.Thresholds.CrackGrowthCrit
 
 	if growthRatePerMonth > critRate {
-		*generated = append(*generated, models.Alert{
+		alert := models.Alert{
 			Time:      time.Now(),
 			AlertType: "crack_growth_acceleration",
 			Severity:  "critical",
 			SensorID:  reading.SensorID,
 			Value:     growthRatePerMonth,
 			Threshold: critRate,
-		})
+		}
+		*generated = append(*generated, alert)
+		AlertsGeneratedTotal.WithLabelValues(alert.Severity, alert.AlertType).Inc()
 	} else if growthRatePerMonth > warnRate {
-		*generated = append(*generated, models.Alert{
+		alert := models.Alert{
 			Time:      time.Now(),
 			AlertType: "crack_growth_acceleration",
 			Severity:  "warning",
 			SensorID:  reading.SensorID,
 			Value:     growthRatePerMonth,
 			Threshold: warnRate,
-		})
+		}
+		*generated = append(*generated, alert)
+		AlertsGeneratedTotal.WithLabelValues(alert.Severity, alert.AlertType).Inc()
 	}
 }
 
